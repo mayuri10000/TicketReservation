@@ -25,10 +25,19 @@ typedef struct {
 	float soldierDiscount;
 	float studentDiscount;
 	int level;
-	// people limitation
+	FeatureSpotLimitation *limitation;
+	int limitationCount;
 	char district[20];
 	int maintenanceFee;
 } FeatureSpot;
+
+typedef struct {
+	char featureSpotId[6];
+	int isHot;
+	int timeSpanStart;
+	int timeSpanEnd;
+	int peopleCount;
+} FeatureSpotLimitation;
 
 typedef enum {
 	NORMAL = 0,
@@ -41,9 +50,10 @@ typedef enum {
 typedef struct {
 	char id[30];
 	char orderDate[10];
-	char featureSpotId[6];
+	FeatureSpot *featureSpot;
+	TouristGroup *touristGroup;
 	char time[16];
 	int ages[20];
-	TouristIdantity idantity[20];
+	TouristIdantity idantity;
 	float totalPrice;
-} Order;
+} Reservation;
