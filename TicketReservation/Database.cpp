@@ -5,7 +5,7 @@
 */
 
 #include "stdafx.h"
-#include "sqlite3.h"
+#include "sqlite3.h"               // 本模块使用的数据库相关功能由sqlite3库提供
 #include <io.h>
 #include "Database.h"
 #pragma comment(lib, "sqlite3.lib")
@@ -14,6 +14,8 @@
 
 sqlite3 *database;
 char ErrorMsg[255];
+
+int getDataBy(const char tableName[], char condition[], int sort, const char sortBy[], char ***data, int *columns);
 
 // 初始化数据库，应在程序开头调用
 int initializeDatabase() {

@@ -57,6 +57,8 @@ typedef struct {
 	char district[20];
 	int maintenanceFee;
 	int reservationCount;
+	int totalTicketCount;
+	int totalProfit;
 	int isSuitableForEldersAndChildren;
 } FeatureSpot;
 
