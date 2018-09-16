@@ -1,7 +1,5 @@
 /*
 	数据库模块导出函数，提供基本数据库的增删改查功能
-	作者：刘同 2017212783
-	最后修改日期：2018-9-13
 */
 
 #pragma once
@@ -26,6 +24,11 @@ SystemAdmin *getSystemAdmin(char id[]);
 	根据id获取景点信息
 */
 FeatureSpot *getFeatureSpot(char id[]);
+
+/*
+	根据id获取订单信息
+*/
+Reservation *getReservation(char id[]);
 
 /*
 	查询订单信息

@@ -1,7 +1,5 @@
 /*
 	结构体模块，定义了项目中用到的不同类型的数据的结构体
-	作者：刘同 2017212783
-	最后修改日期：2018-9-13
 */
 
 #pragma once
@@ -10,21 +8,21 @@
 	游客团信息
 */
 typedef struct {
-	char id[10];
+	char id[11];     // 对于定长字符串，要多给一字节，否则在显示该字段时会读到字符串结尾以后
 	char password[20];
 	int peopleCount;
 	int age;
-	char phone[11];
+	char phone[12];   
 } TouristGroup;
 
 /*
 	系统管理员信息
 */
 typedef struct {
-	char id[10];
+	char id[11];
 	char password[20];
-	char phone[11];
 	char email[30];
+	char phone[12];
 } SystemAdmin;
 
 /*
@@ -32,10 +30,10 @@ typedef struct {
 */
 typedef struct {
 	int id;
-	char featureSpotId[6];
+	char featureSpotId[7];
 	int isHot;
-	int timeSpanStart;
-	int timeSpanEnd;
+	char timeSpanStart[6];
+	char timeSpanEnd[6];
 	int peopleCount;
 } FeatureSpotLimitation;
 
@@ -43,7 +41,7 @@ typedef struct {
 	景点信息
 */
 typedef struct {
-	char id[6];
+	char id[7];
 	char name[20];
 	char discription[200];
 	int coldSeasonPrice;
@@ -55,10 +53,14 @@ typedef struct {
 	FeatureSpotLimitation *limitations;
 	int limitationCount;
 	char district[20];
-	int maintenanceFee;
+	float maintenanceFee;
 	int reservationCount;
+	int visitCount;
+	int totalTicketSold;
+	int coldSeasonTickets;
+	int hotSeasonTickets;
 	int totalTicketCount;
-	int totalProfit;
+	float totalProfit;
 	int isSuitableForEldersAndChildren;
 } FeatureSpot;
 
@@ -76,10 +78,12 @@ typedef enum {
 */
 typedef struct {
 	char id[30];
-	char orderDate[10];
-	FeatureSpot *featureSpot;
+	char orderDate[18];
+	FeatureSpot *featureSpots;
+	int featureSpotCount;
+	int isHotSeason;
 	TouristGroup *touristGroup;
-	char time[16];
+	char time[18];
 	TouristIdantity idantity;
 	float totalPrice;
 } Reservation;

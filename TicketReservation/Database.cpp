@@ -1,12 +1,11 @@
 /*
 	数据库模块，使用sqlite数据库存储项目中用到的数据，提供基本的增删改查功能
-	作者：刘同 2017212783
 	最后修改日期：2018-9-13
 */
 
 #include "stdafx.h"
 #include "sqlite3.h"               // 本模块使用的数据库相关功能由sqlite3库提供
-#include <io.h>
+#include <io.h>                    // "_access" 函数所在的库
 #include "Database.h"
 #pragma comment(lib, "sqlite3.lib")
 
@@ -32,12 +31,15 @@ int initializeDatabase() {
 
 		char sqlCreateTables[] =                                                    // 创建表的sql语句
 			"CREATE TABLE TouristGroup (id CHAR(10) PRIMARY KEY NOT NULL, password CHAR(20), peopleCount INTEGER , ages  INTEGER, phone CHAR(11) UNIQUE);" // sql语句中的UNIQUE代表该字段的值不能重复
-			"CREATE TABLE SystemAdmin  (id CHAR(10) PRIMARY KEY NOT NULL, password CHAR(20), phone CHAR(11) UNIQUE, email CHAR(11) UNIQUE);"
+			"CREATE TABLE SystemAdmin  (id CHAR(10) PRIMARY KEY NOT NULL, password CHAR(20), phone CHAR(11) UNIQUE, email CHAR(30) UNIQUE);"
 			"CREATE TABLE FeatureSpot  (id CHAR(6)  PRIMARY KEY NOT NULL, name CHAR(20), discription TEXT, coldSeasonPrice INTEGER, \
-				hotSeasonPrice INTEGER, timeRequired INTEGER, solderDiscount REAL, studentDiscount REAL, level INTEGER, district CHAR(20),\
-				maintenanceFee INTEGER, reservationCount INTEGER, isSuitableForEldersAndChildren INTEGER );"
-			"CREATE TABLE FeatureSpotLimitation (id INTEGER PRIMARY KEY AUTOINCREMENT, featureSpotId CHAR(6), isHot INTEGER, timeSpanStart INTEGER, timeSpanEnd INTEGER, peopleCount INTEGER);"
-			"CREATE TABLE Reservation (id CHAR(30) PRIMARY KEY NOT NULL, orderDate CHAR(10), touristGroupId CHAR(10), featureSpotId CHAR(6), time CHAR(16), idantity INTEGER, totalPrice REAL);";
+				hotSeasonPrice INTEGER, timeRequired INTEGER, soldierDiscount REAL, studentDiscount REAL, level INTEGER, district CHAR(20),\
+				maintenanceFee REAL, reservationCount INTEGER, visitCount INTEGER, totalTicketSold INTEGER, coldSeasonTickets INTEGER,\
+				hotSeasonTickets INTEGER, totalTicketCount INTEGER, totalProfit REAL, isSuitableForEldersAndChildren INTEGER );"
+			"CREATE TABLE FeatureSpotLimitation (id INTEGER PRIMARY KEY AUTOINCREMENT, featureSpotId CHAR(6), isHot INTEGER, timeSpanStart CHAR(5), timeSpanEnd CHAR(5), peopleCount INTEGER);"
+			"CREATE TABLE Reservation (id CHAR(30) PRIMARY KEY NOT NULL, orderDate CHAR(18), isHotSeason INTEGER, touristGroupId CHAR(10), time CHAR(18), idantity INTEGER, totalPrice REAL);"
+			"CREATE TABLE ReservationFeatureSpot (reservationId CHAR(30), featureSpotId CHAR(10), PRIMARY KEY(reservationId, featureSpotId));";
+		                  // 这是一个关系表，用来存储订单信息与景点信息的一对多关系 (无需为其建立结构体)
 
 		sqlite3_exec(database, sqlCreateTables, NULL, NULL, &err);                  // 执行，创建表
 
@@ -111,9 +113,10 @@ FeatureSpot *getFeatureSpot(char id[]) {
 	FeatureSpot *ret = NULL;
 
 	sprintf(condition, "id = '%s'", id); // 构建sql条件语句
-	getFeatureSpotsBy(condition, 0, NULL, &ret);
-
-	return ret;
+	if (getFeatureSpotsBy(condition, 0, NULL, &ret) >= 1)
+		return ret;
+	else
+		return NULL;
 }
 
 // 根据id获取订单信息
@@ -122,9 +125,10 @@ Reservation *getReservation(char id[]) {
 	Reservation *ret = NULL;
 	
 	sprintf(condition, "id = '%s'", id);
-	getReservationsBy(condition, 0, NULL, &ret);
-
-	return ret;
+	if (getReservationsBy(condition, 0, NULL, &ret) >= 1)
+		return ret;
+	else
+		return NULL;
 }
 
 /*
@@ -141,25 +145,25 @@ int getDataBy(const char tableName[] ,char condition[], int sort, const char sor
 	int count = 0;
 	char *err;
 	char sql[256];
-	char sortStmt[32];
-	char whereStmt[32];
+	char sortStmt[60];
+	char whereStmt[60];
 
 	if (condition == NULL)
-		sprintf(whereStmt, " ");   // 如果条件语句为空，则不插入“WHERE”, 查询所有数据
+		sprintf(whereStmt, "");   // 如果条件语句为空，则不插入“WHERE”, 查询所有数据
 	else
 		sprintf(whereStmt, "WHERE %s", condition); // 插入条件语句
 
 	if (sort)  // 如果排序，则构建排序语句
-		sprintf(sortStmt, "ORDER BY '%s' %s;", sortBy, sort > 0 ? "ASC" : "DESC");
+		sprintf(sortStmt, "ORDER BY %s %s", sortBy, sort > 0 ? "" : "DESC");
 	else
-		sprintf(sortStmt, ";");
+		sprintf(sortStmt, "");
 
-	sprintf(sql, "SELECT * FROM '%s' %s %s", tableName, whereStmt, sortStmt); // 构建完整sql语句
+	sprintf(sql, "SELECT * FROM %s %s %s", tableName, whereStmt, sortStmt); // 构建完整sql语句
 	int re = sqlite3_get_table(database, sql, data, &count, columns, &err);   // 调用sqlite3_get_table查询数据
 
 	if (re != SQLITE_OK) {     // 如果查询不成功，则将当前错误信息存入全局ErrorMsg变量，并返回-1
-		sprintf(ErrorMsg, "数据库查询失败：%s", err);
-		return -1;
+		sprintf(ErrorMsg, "%s", err);
+		return -re;
 	}
 
 	return count;              // 查询成功则返回查询到的记录数
@@ -182,19 +186,76 @@ int getLimitations(char id[], FeatureSpotLimitation **out)
 	count = getDataBy("FeatureSpotLimitation", condition, 0, NULL, &pResult, &columns);
 	if (count > -1) {
 		*out = (FeatureSpotLimitation *)malloc(sizeof(FeatureSpotLimitation) * count);
+		FeatureSpotLimitation *o = *out;
 		int index = columns;
 		for (int row = 0; row != count; row++) {
-			sscanf(pResult[index++], "%s",  out[row]->featureSpotId);
-			sscanf(pResult[index++], "%d", &out[row]->isHot);
-			sscanf(pResult[index++], "%d", &out[row]->timeSpanStart);
-			sscanf(pResult[index++], "%d", &out[row]->timeSpanEnd);
-			sscanf(pResult[index++], "%d", &out[row]->peopleCount);
+			FeatureSpotLimitation l;
+			sscanf(pResult[index++], "%d", &l.id);
+			sscanf(pResult[index++], "%s",  l.featureSpotId);
+			sscanf(pResult[index++], "%d", &l.isHot);
+			sscanf(pResult[index++], "%s",  l.timeSpanStart);
+			sscanf(pResult[index++], "%s",  l.timeSpanEnd);
+			sscanf(pResult[index++], "%d", &l.peopleCount);
+			o[row] = l;
 		}
 
 		sqlite3_free_table(pResult);
 
 		return count;
 	}
+}
+
+/*
+	(内部函数) 获取一笔订单中的景点信息
+	id: 订单ID
+	out: 输出指针，请传入存放获取到的信息的数组(无需初始化)
+	返回值: 当前订单中景点的个数
+*/
+int getFeatureSpotsForReservation(char id[], FeatureSpot **out) 
+{
+	int count = 0;
+	char **pResult;
+	char condition[50];
+	char tId[10];
+	int columns = 0;
+
+	sprintf(condition, "reservationId = '%s'", id);
+	count = getDataBy("ReservationFeatureSpot", condition, 0, NULL, &pResult, &columns);
+	if (count > -1) {
+		*out = (FeatureSpot *)malloc(sizeof(FeatureSpot) * count);
+		int index = columns;
+		for (int row = 0; row != count; row++) {
+			index++;
+			sscanf(pResult[index++], "%s", tId);
+			out[row] = getFeatureSpot(tId);
+		}
+
+		sqlite3_free_table(pResult);
+
+		return count;
+	}
+}
+
+/*
+	(内部函数) 向一笔订单添加景点信息
+	id: 订单ID
+	in: 要添加的景点
+*/
+int addFeatureSpotsForReservation(char id[], FeatureSpot *in) {
+	char sql[100];
+	char *err = NULL;
+	int re = 0;
+
+	sprintf(sql, "INSERT INTO 'ReservationFeatureSpot' VALUES( '%s', '%s' );", id, in->id);
+
+	re = sqlite3_exec(database, sql, NULL, NULL, &err); 
+
+	if (re == SQLITE_OK)    
+		return 1;
+
+	sprintf(ErrorMsg, "%s", err);  
+
+	return -re;   
 }
 
 // 查询订单信息
@@ -204,18 +265,21 @@ int getReservationsBy(char condition[], int sort, const char sortBy[], Reservati
 	char **pResult;
 	
 	int columns = 0;
-	count = getDataBy("Reservations", condition, sort, sortBy, &pResult, &columns);
+	count = getDataBy("Reservation", condition, sort, sortBy, &pResult, &columns);
 	if (count > -1) {
 		*out = (Reservation *)malloc(sizeof(Reservation) * count);
+		Reservation *o = *out;
 		int index = columns;
 		for (int row = 0; row != count; row++) {
-			sscanf(pResult[index++], "%s",  out[row]->id);
-			sscanf(pResult[index++], "%s",  out[row]->orderDate);
-			out[row]->featureSpot = getFeatureSpot(pResult[index++]);   // 根据数据库记录中的相关id字段，查询景点及旅游团信息，并填入结构体
-			out[row]->touristGroup = getTouristGroup(pResult[index++]);
-			sscanf(pResult[index++], "%s",  out[row]->time);
-			sscanf(pResult[index++], "%d", &out[row]->idantity);
-			sscanf(pResult[index++], "%f", &out[row]->totalPrice);
+			sscanf(pResult[index++], "%s",  o[row].id);
+			sscanf(pResult[index++], "%s",  o[row].orderDate);
+			sscanf(pResult[index++], "%d", &o[row].isHotSeason);
+			o[row].touristGroup = getTouristGroup(pResult[index++]); // 根据数据库记录中的相关id字段，查询旅游团信息，并填入结构体
+			sscanf(pResult[index++], "%s",  o[row].time);
+			sscanf(pResult[index++], "%d", &o[row].idantity);
+			sscanf(pResult[index++], "%f", &o[row].totalPrice);
+
+			o[row].featureSpotCount = getFeatureSpotsForReservation(o[row].id, &o[row].featureSpots);
 		}
 
 		sqlite3_free_table(pResult);
@@ -233,23 +297,30 @@ int getFeatureSpotsBy(char condition[], int sort, const char sortBy[], FeatureSp
 	count = getDataBy("FeatureSpot", condition, sort, sortBy, &pResult, &columns);
 	if (count > -1) {
 		*out = (FeatureSpot *)malloc(sizeof(FeatureSpot) * count);
+		FeatureSpot *o = *out;
 		int index = columns;
 		for (int row = 0; row != count; row++) {
-			sscanf(pResult[index++], "%s",  out[row]->id);
-			sscanf(pResult[index++], "%s",  out[row]->name);
-			sscanf(pResult[index++], "%s",  out[row]->discription);
-			sscanf(pResult[index++], "%d", &out[row]->coldSeasonPrice);
-			sscanf(pResult[index++], "%d", &out[row]->hotSeasonPrice);
-			sscanf(pResult[index++], "%d", &out[row]->timeRequired);
-			sscanf(pResult[index++], "%f", &out[row]->soldierDiscount);
-			sscanf(pResult[index++], "%f", &out[row]->studentDiscount);
-			sscanf(pResult[index++], "%d", &out[row]->level);
-			sscanf(pResult[index++], "%s",  out[row]->district);
-			sscanf(pResult[index++], "%d", &out[row]->maintenanceFee);
-			sscanf(pResult[index++], "%d", &out[row]->reservationCount);
-			sscanf(pResult[index++], "%d", &out[row]->isSuitableForEldersAndChildren);
+			sscanf(pResult[index++], "%s",  o[row].id);
+			sscanf(pResult[index++], "%s",  o[row].name);
+			sscanf(pResult[index++], "%s",  o[row].discription);
+			sscanf(pResult[index++], "%d", &o[row].coldSeasonPrice);
+			sscanf(pResult[index++], "%d", &o[row].hotSeasonPrice);
+			sscanf(pResult[index++], "%d", &o[row].timeRequired);
+			sscanf(pResult[index++], "%f", &o[row].soldierDiscount);
+			sscanf(pResult[index++], "%f", &o[row].studentDiscount);
+			sscanf(pResult[index++], "%d", &o[row].level);
+			sscanf(pResult[index++], "%s",  o[row].district);
+			sscanf(pResult[index++], "%f", &o[row].maintenanceFee);
+			sscanf(pResult[index++], "%d", &o[row].reservationCount);
+			sscanf(pResult[index++], "%d", &o[row].visitCount);
+			sscanf(pResult[index++], "%d", &o[row].totalTicketSold);
+			sscanf(pResult[index++], "%d", &o[row].coldSeasonTickets);
+			sscanf(pResult[index++], "%d", &o[row].hotSeasonTickets);
+			sscanf(pResult[index++], "%d", &o[row].totalTicketCount);
+			sscanf(pResult[index++], "%f", &o[row].totalProfit);
+			sscanf(pResult[index++], "%d", &o[row].isSuitableForEldersAndChildren);
 
-			out[row]->limitationCount = getLimitations(out[row]->id, &out[row]->limitations); // 查询人数限制信息，并填入结构体
+			o[row].limitationCount = getLimitations(o[row].id, &o[row].limitations); // 查询人数限制信息，并填入结构体
 		}
 
 		sqlite3_free_table(pResult);
@@ -279,11 +350,11 @@ int addTourstGroup(TouristGroup *val) { // 注：addSystemAdmin，addFeatureSpot，a
 
 // 添加系统管理员信息
 int addSystemAdmin(SystemAdmin *val) {
-	char sql[100];
+	char sql[128];
 	char *err = NULL;
 	int re = 0;
 
-	sprintf(sql, "INSERT INTO 'SystemAdmin' VALUES( '%s', '%s', '%s', '%s' );", val->id, val->phone, val->email);
+	sprintf(sql, "INSERT INTO 'SystemAdmin' VALUES( '%s', '%s', '%s', '%s' );", val->id, val->password, val->phone, val->email);
 
 	re = sqlite3_exec(database, sql, NULL, NULL, &err);
 
@@ -301,11 +372,15 @@ int addFeatureSpot(FeatureSpot *val) {
 	char *err = NULL;
 	int re = 0;
 
-	sprintf(sql, "INSERT INTO 'FeatureSpot' VALUES('%s', '%s', '%s', %d, %d, %d, %f, %f, %d, '%s', %d);",
+	sprintf(sql, "INSERT INTO 'FeatureSpot' VALUES('%s', '%s', '%s', %d, %d, %d, %f, %f, %d, '%s', %f, 0, 0, 0, 0, 0, %d, %f, %d);",
 		val->id, val->name, val->discription, val->coldSeasonPrice, val->hotSeasonPrice, val->timeRequired,
-		val->soldierDiscount, val->studentDiscount, val->level, val->district, val->maintenanceFee);
+		val->soldierDiscount, val->studentDiscount, val->level, val->district, val->maintenanceFee, val->totalTicketCount,
+	    val->totalProfit ,val->isSuitableForEldersAndChildren);
 
 	re = sqlite3_exec(database, sql, NULL, NULL, &err);
+
+	for (int i = 0; i != val->limitationCount; i++)
+		addLimitation(&val->limitations[i]);
 
 	if (re == SQLITE_OK)
 		return 1;
@@ -321,7 +396,7 @@ int addLimitation(FeatureSpotLimitation *val) {
 	char *err = NULL;
 	int re = 0;
 
-	sprintf(sql, "INSERT INTO 'FeatureSpotLimitation' VALUES( NULL, '%s', %d, %d, %d, %d );",
+	sprintf(sql, "INSERT INTO 'FeatureSpotLimitation' VALUES( NULL, '%s', %d, '%s', '%s', %d );",
 		val->featureSpotId, val->isHot, val->timeSpanStart, val->timeSpanEnd, val->peopleCount);
 
 	re = sqlite3_exec(database, sql, NULL, NULL, &err);
@@ -336,15 +411,17 @@ int addLimitation(FeatureSpotLimitation *val) {
 
 // 添加订单信息
 int addReservation(Reservation *val) {
-	char sql[100];
+	char sql[256];
 	char *err = NULL;
 	int re = 0;
 
-	sprintf(sql, "INSERT INTO 'Reservation' VALUES( '%s', '%s', '%s', '%s', '%s', %d, %f );",
-		val->id, val->orderDate, val->featureSpot->id, val->touristGroup->id, val->time, val->idantity,
-		val->totalPrice);
+	sprintf(sql, "INSERT INTO 'Reservation' VALUES( '%s', '%s', %d, '%s', '%s', %d, %f );",
+		val->id, val->orderDate, val->isHotSeason, val->touristGroup->id, val->time, val->idantity, val->totalPrice);
 
 	re = sqlite3_exec(database, sql, NULL, NULL, &err);
+
+	for (int i = 0; i != val->featureSpotCount; i++)
+		addFeatureSpotsForReservation(val->id, &val->featureSpots[i]);
 
 	if (re == SQLITE_OK)
 		return 1;
@@ -357,7 +434,7 @@ int addReservation(Reservation *val) {
 // 更新数据
 int updateData(const char tableName[], char condition[], const char fieldName[], char fieldValue[], int isNumber) {
 	char sql[100];
-	char value[20];
+	char value[50];
 	char *err = NULL;
 	int re = 0;
 
@@ -377,7 +454,7 @@ int updateData(const char tableName[], char condition[], const char fieldName[],
 // 删除数据
 int removeData(const char tableName[], char condition[]) {
 	char sql[100];
-	char where[20];
+	char where[50];
 	char *err = NULL;
 	int re = 0;
 
