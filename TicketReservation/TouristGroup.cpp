@@ -242,8 +242,8 @@ void QueryAndOrder() {
 				if (readKey() == 'Q' || readKey() == 'q')
 					break;
 			}
-			else if (f->totalTicketCount - f->totalTicketSold <= 0) {
-				printf(COLOR_RED_B "该景点门票已售完，请预定其他景点, 按[q]返回主菜单\n" COLOR_RESET);
+			else if (f->totalTicketCount - f->totalTicketSold < currentUser.peopleCount) {
+				printf(COLOR_RED_B "该景点门票量已不足，请预定其他景点, 按[q]返回主菜单\n" COLOR_RESET);
 				if (readKey() == 'Q' || readKey() == 'q')
 					break;
 			}
@@ -289,8 +289,8 @@ void MakeReservation(char *id) {
 			}
 			if (f == NULL)
 				printf(COLOR_RED_B "景点ID不存在\n" COLOR_RESET);
-			else if (f->totalTicketCount - f->totalTicketSold <= 0)
-				printf(COLOR_RED_B "该景点门票已售完\n" COLOR_RESET);
+			else if (f->totalTicketCount - f->totalTicketSold < currentUser.peopleCount)
+				printf(COLOR_RED_B "该景点门票已不足\n" COLOR_RESET);
 			else if (!f->isSuitableForEldersAndChildren && (currentUser.age >= 60 || currentUser.age <= 14))
 				printf(COLOR_RED_B "该景点不适合当前旅游团的年龄段\n" COLOR_RESET);
 			else
@@ -391,7 +391,7 @@ void MakeReservation(char *id) {
 					(reservation.idantity == SOLDIER ? f.soldierDiscount : 1) *
 					(reservation.idantity == STUDENT ? f.studentDiscount : 1);
 
-				_itoa(f.totalProfit + price, value, 10);
+				sprintf(value, "%f", f.totalProfit + price);
 				updateData("FeatureSpot", condition, "totalProfit", value, 1);
 			}
 		}
@@ -489,25 +489,40 @@ void ReservationManagetment() {
 
 		printf("总价格: " COLOR_GREEN "%6.2f\n" COLOR_RESET, reservation->totalPrice);
 
-
 		// TODO: Check whether the reservation can be cancelled
 
-		printf(COLOR_YELLOW_B "当前订单可取消, 请按[x]取消该订单, 按回车键继续查询, 其他键返回主菜单\n" COLOR_RESET);
-		choice = readKey();
-		if ((choice == 'x' || choice == 'X') && inputBool("是否要取消该订单")) {
-			char condition[100];
-			sprintf(condition, "id = '%s'", reservation->id);
-			int ret = removeData("Reservation", condition);
-			if (ret == 1)
-				printf(COLOR_GREEN_B "取消订单成功\n" COLOR_RESET);
-			else
-			{
-				char err[100];
-				getError(err);
-				printf(COLOR_RED_B "数据库错误: %s (错误码: %d)\n" COLOR_RESET, err, -ret);
-			}
+		struct tm rTime;
+		rTime.tm_year = atoi(strtok(reservation->time, ":")) - 1900;
+		rTime.tm_mon = atoi(strtok(NULL, ":")) - 1;
+		rTime.tm_mday = atoi(strtok(NULL, ":"));
+		rTime.tm_hour = atoi(strtok(NULL, ":"));
+		rTime.tm_min = atoi(strtok(NULL, ":"));
+		time_t rtime = mktime(&rTime);
 
-			break;
+		int diff = (int)difftime(time(NULL), rtime);
+
+		if (diff > -864000 && diff < 0) {
+			printf(COLOR_YELLOW_B "当前订单可取消, 请按[x]取消该订单, 按回车键继续查询, 其他键返回主菜单\n" COLOR_RESET);
+			choice = readKey();
+			if ((choice == 'x' || choice == 'X') && inputBool("是否要取消该订单")) {
+				char condition[100];
+				sprintf(condition, "id = '%s'", reservation->id);
+				int ret = removeData("Reservation", condition);
+				if (ret == 1)
+					printf(COLOR_GREEN_B "取消订单成功\n" COLOR_RESET);
+				else
+				{
+					char err[100];
+					getError(err);
+					printf(COLOR_RED_B "数据库错误: %s (错误码: %d)\n" COLOR_RESET, err, -ret);
+				}
+
+				break;
+			}
+		}
+		else {
+			printf(COLOR_YELLOW_B "当前订单无法取消, 请在出行前24小时内取消订单. 按回车键继续查询, 其他键返回主菜单\n" COLOR_RESET);
+			choice = readKey();
 		}
 	}
 

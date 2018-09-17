@@ -11,7 +11,7 @@
 #pragma comment(lib, "pcre.lib")
 
 #define OVECCOUNT 30    /* should be a multiple of 3 */
-#define EMAIL_RE        "^[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z0-9]{2,6}$"    // 验证邮箱的正则表达式
+#define EMAIL_RE        "^[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z0-9]{2,6}$"  // 验证邮箱的正则表达式
 #define ID_RE           "^[A-Za-z0-9]{6,10}$"                                                    // 验证用户id、系统管理员id的正则表达式
 #define PHONE_RE        "^[0-9]{11}$"                                                            // 验证手机号的正则表达式
 #define INT_RE          "^[+-]?[0-9]*$"                                                          // 验证整数的正则表达式

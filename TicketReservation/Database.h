@@ -51,6 +51,11 @@ int getReservationsBy(char condition[], int sort, const char sortBy[], Reservati
 int getFeatureSpotsBy(char condition[], int sort, const char sortBy[], FeatureSpot** out);
 
 /*
+	获取一个景点的所有订单
+*/
+int getReservationsForFeatureSpot(char id[], Reservation **out);
+
+/*
 	添加游客团信息
 */
 int addTourstGroup(TouristGroup *val);

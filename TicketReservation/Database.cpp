@@ -232,8 +232,8 @@ int getFeatureSpotsForReservation(char id[], FeatureSpot **out)
 
 		sqlite3_free_table(pResult);
 
-		return count;
 	}
+	return count;
 }
 
 /*
@@ -257,6 +257,32 @@ int addFeatureSpotsForReservation(char id[], FeatureSpot *in) {
 
 	return -re;   
 }
+
+// 获取一个景点的所有订单
+int getReservationsForFeatureSpot(char id[], Reservation **out)
+{
+	int count = 0;
+	char **pResult;
+	char condition[50];
+	char tId[10];
+	int columns = 0;
+
+	sprintf(condition, "featureSpotId = '%s'", id);
+	count = getDataBy("ReservationFeatureSpot", condition, 0, NULL, &pResult, &columns);
+	if (count > -1) {
+		*out = (Reservation *)malloc(sizeof(Reservation) * count);
+		int index = columns;
+		for (int row = 0; row != count; row++) {
+			sscanf(pResult[index++], "%s", tId);
+			index++;
+			out[row] = getReservation(tId);
+		}
+		sqlite3_free_table(pResult);
+	}
+
+	return count;
+}
+
 
 // 查询订单信息
 int getReservationsBy(char condition[], int sort, const char sortBy[], Reservation** out)

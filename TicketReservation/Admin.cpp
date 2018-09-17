@@ -18,7 +18,7 @@ void ListReservations();
 void AddFeatureSpot();
 void ModifyPersonalInfo();
 void ListFeatureSpot();
-void printAgeDistributionForFeatureSpot(char id[]);
+void AddAdmin();
 
 // 管理员功能模块主入口函数
 void Admin() 
@@ -35,13 +35,14 @@ void Admin()
 		printf("│               " COLOR_YELLOW_B "[1]" COLOR_RESET " 景点信息查询                   │\n");
 		printf("│               " COLOR_YELLOW_B "[2]" COLOR_RESET " 订单信息查询                   │\n");
 		printf("│               " COLOR_YELLOW_B "[3]" COLOR_RESET " 添加景点                       │\n");
-		printf("│               " COLOR_YELLOW_B "[4]" COLOR_RESET " 个人信息管理                   │\n");
-		printf("│               " COLOR_YELLOW_B "[5]" COLOR_RESET " 退出登录                       │\n");
+		printf("│               " COLOR_YELLOW_B "[4]" COLOR_RESET " 添加管理员                     │\n");
+		printf("│               " COLOR_YELLOW_B "[5]" COLOR_RESET " 个人信息管理                   │\n");
+		printf("│               " COLOR_YELLOW_B "[6]" COLOR_RESET " 退出登录                       │\n");
 		printf("└──────────────────────────────────────────────────┘\n");
 		printf(COLOR_YELLOW_B "请按数字键选择功能\n" COLOR_RESET);
 
 		char choice = '\0';
-		while (!(choice = readKey()) || choice > '5' || choice < '1')
+		while (!(choice = readKey()) || choice > '6' || choice < '1')
 			printf(COLOR_RED_B "您的按键有误, 请重试\n" COLOR_RESET);
 		
 
@@ -57,9 +58,12 @@ void Admin()
 				AddFeatureSpot();
 				break;
 			case '4':
-				ModifyPersonalInfo();
+				AddAdmin();
 				break;
 			case '5':
+				ModifyPersonalInfo();
+				break;
+			case '6':
 				return;
 		}
 		
@@ -68,33 +72,77 @@ void Admin()
 
 void Login()
 {
-	char userId[10];
-	char password[30];
-	SystemAdmin *user;
-	
 	system("cls");
 	printf("管理员登录\n");
 	printf("========================\n\n");
 	while (1) {
-		printf("请输入管理员ID: ");
-		scanf("%s", userId);
+		char userName[10];
+		char password[30];
+		inputStringWithLengthLimit("管理员ID:", 6, 10, userName);
+		inputPassword("密码:", password);
 
-		if ((user = getSystemAdmin(userId)) == NULL)
-			printf(COLOR_RED_B "您输入的管理员ID不存在, 请重新输入\n" COLOR_RESET);
+		SystemAdmin *user = getSystemAdmin(userName);
+		if (user == NULL || strcmp(user->password, password))
+			printf(COLOR_RED_B "ID或密码错误, 请重试\n" COLOR_RESET);
+		else {
+			currentUser = *user;
+			break;
+		}
+	}
+}
+
+void AddAdmin() {
+	system("cls");
+	printf("添加管理员\n");
+	printf("================\n\n");
+
+	SystemAdmin systemAdmin;
+
+	while(1) {
+		inputID("请输入新管理员ID:", systemAdmin.id);
+		if (!checkIsUnique("SystemAdmin", "id", systemAdmin.id))
+			printf(COLOR_RED_B "该ID已存在!\n" COLOR_RESET);
 		else
 			break;
 	}
 
 	while (1) {
-		inputPassword("请输入密码: ", password);
-
-		if (strcmp(password, user->password))
-			printf(COLOR_RED_B "密码错误！请重试\n" COLOR_RESET);
+		char password[50];
+		inputPassword("请输入密码:", systemAdmin.password);
+		inputPassword("请在此输入密码:", password);
+		if (strcmp(systemAdmin.password, password))
+			printf(COLOR_RED_B "两次密码错误不一致!\n" COLOR_RESET);
 		else
 			break;
 	}
 
-	currentUser = *user;
+	while (1) {
+		inputEmail("请输入邮箱地址:", systemAdmin.email);
+		if (!checkIsUnique("SystemAdmin", "email", systemAdmin.email))
+			printf(COLOR_RED_B "该邮箱地址已存在!\n" COLOR_RESET);
+		else
+			break;
+	}
+
+	while (1) {
+		inputPhone("请输入手机号码:", systemAdmin.phone);
+		if (!checkIsUnique("SystemAdmin", "phone", systemAdmin.phone))
+			printf(COLOR_RED_B "该手机号码已存在!\n" COLOR_RESET);
+		else
+			break;
+	}
+
+	if (addSystemAdmin(&systemAdmin) != 1) {
+		char error[100];
+		getError(error);
+		printf(COLOR_RED_B "数据库错误: %s \n" COLOR_RESET, error);
+	}
+	else {
+		printf(COLOR_GREEN_B "添加成功\n" COLOR_RESET);
+	}
+
+	printf("请按回车键进入主菜单...\n");
+	while (readKey() != '\r');
 }
 
 void ListReservations() {
@@ -456,7 +504,45 @@ void ListFeatureSpot() {
 					printf("旺季售票量: "    COLOR_GREEN "%d\n"       COLOR_RESET, f->hotSeasonTickets);
 					printf("总利润: "        COLOR_GREEN "%6.2f\n\n"    COLOR_RESET, f->totalProfit);
 
-					printAgeDistributionForFeatureSpot(f->id);
+					Reservation *reservations;
+					int count = getReservationsForFeatureSpot(f->id, &reservations);
+					if (count < 0) {
+						char err[100];
+						getError(err);
+						printf(COLOR_RED_B "数据库错误: %s (错误码: %d)\n" COLOR_RESET, err, -count);
+						return;
+					}
+
+					int ageUnder14 = 0;
+					int age15To30 = 0;
+					int age31To40 = 0;
+					int age41To60 = 0;
+					int ageUp61 = 0;
+
+					for (int i = 0; i != count; i++) {
+						Reservation reservation = reservations[i];
+						int age = reservation.touristGroup->age;
+						int people = reservation.touristGroup->peopleCount;
+						if (age <= 14)
+							ageUnder14 += people;
+						else if (age >= 15 && age <= 30)
+							age15To30 += people;
+						else if (age >= 31 && age <= 40)
+							age31To40 += people;
+						else if (age >= 41 && age <= 60)
+							age41To60 += people;
+						else
+							ageUp61 += people;
+					}
+
+					printf("景点旅客年龄段分布\n");
+					printf("=======================\n");
+
+					printf("14岁以下  %d 人\n", ageUnder14);
+					printf("15-30岁   %d 人\n", age15To30);
+					printf("31-40岁   %d 人\n", age31To40);
+					printf("41-60岁   %d 人\n", age31To40);
+					printf("61岁以上  %d 人\n\n", ageUp61);
 
 					printf(COLOR_YELLOW_B "按任意键继续查询，按[e]退出\n" COLOR_RESET);
 					option = readKey();
@@ -470,10 +556,6 @@ void ListFeatureSpot() {
 	while (readKey() != '\r');
 }
 
-
-void printAgeDistributionForFeatureSpot(char id[]) {
-
-}
 
 void ModifyPersonalInfo() 
 {
