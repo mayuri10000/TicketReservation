@@ -10,6 +10,8 @@
 #pragma comment(lib, "sqlite3.lib")
 
 #define DB_FILENAME "Database.db"  // 数据库文件名
+#define SQL_MAX_LEN 256
+#define COND_MAX_LEN 64
 
 sqlite3 *database;
 char ErrorMsg[255];
@@ -54,13 +56,15 @@ int initializeDatabase() {
 			return -1;
 		}
 	}
+
+	return 1;
 }
 
 // 根据id获取游客团信息
 TouristGroup *getTouristGroup(char id[]) { // 注：getSystemAdmin, getReservationsBy, getFeatureSpotsBy函数的基本结构与本函数部分相同，将不再重复注释
 	int count = 0;
 	char **pResult;
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	int columns = 0;
 	TouristGroup *ret = NULL;
 
@@ -86,7 +90,7 @@ TouristGroup *getTouristGroup(char id[]) { // 注：getSystemAdmin, getReservation
 SystemAdmin *getSystemAdmin(char id[]) {
 	int count = 0;
 	char **pResult;
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	int columns = 0;
 	SystemAdmin *ret = NULL;
 
@@ -109,7 +113,7 @@ SystemAdmin *getSystemAdmin(char id[]) {
 
 // 根据id获取景点信息
 FeatureSpot *getFeatureSpot(char id[]) {
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	FeatureSpot *ret = NULL;
 
 	sprintf(condition, "id = '%s'", id); // 构建sql条件语句
@@ -121,12 +125,13 @@ FeatureSpot *getFeatureSpot(char id[]) {
 
 // 根据id获取订单信息
 Reservation *getReservation(char id[]) {
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	Reservation *ret = NULL;
 	
 	sprintf(condition, "id = '%s'", id);
-	if (getReservationsBy(condition, 0, NULL, &ret) >= 1)
+	if (getReservationsBy(condition, 0, NULL, &ret) >= 1) 
 		return ret;
+	
 	else
 		return NULL;
 }
@@ -144,9 +149,9 @@ Reservation *getReservation(char id[]) {
 int getDataBy(const char tableName[] ,char condition[], int sort, const char sortBy[], char ***data, int *columns) {
 	int count = 0;
 	char *err;
-	char sql[256];
-	char sortStmt[60];
-	char whereStmt[60];
+	char sql[SQL_MAX_LEN];
+	char sortStmt[COND_MAX_LEN];
+	char whereStmt[COND_MAX_LEN];
 
 	if (condition == NULL)
 		sprintf(whereStmt, "");   // 如果条件语句为空，则不插入“WHERE”, 查询所有数据
@@ -179,14 +184,14 @@ int getLimitations(char id[], FeatureSpotLimitation **out)
 {
 	int count = 0;
 	char **pResult;
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	int columns = 0;
 
 	sprintf(condition, "featureSpotId = '%s'", id);
 	count = getDataBy("FeatureSpotLimitation", condition, 0, NULL, &pResult, &columns);
 	if (count > -1) {
 		*out = (FeatureSpotLimitation *)malloc(sizeof(FeatureSpotLimitation) * count);
-		FeatureSpotLimitation *o = *out;
+		FeatureSpotLimitation *o = *out;           // 这里是为了防止指针变量次序不明而导致错误，如out[row]->id是错误的
 		int index = columns;
 		for (int row = 0; row != count; row++) {
 			FeatureSpotLimitation l;
@@ -201,8 +206,8 @@ int getLimitations(char id[], FeatureSpotLimitation **out)
 
 		sqlite3_free_table(pResult);
 
-		return count;
 	}
+	return count;
 }
 
 /*
@@ -215,7 +220,7 @@ int getFeatureSpotsForReservation(char id[], FeatureSpot **out)
 {
 	int count = 0;
 	char **pResult;
-	char condition[50];
+	char condition[COND_MAX_LEN];
 	char tId[10];
 	int columns = 0;
 
@@ -223,12 +228,14 @@ int getFeatureSpotsForReservation(char id[], FeatureSpot **out)
 	count = getDataBy("ReservationFeatureSpot", condition, 0, NULL, &pResult, &columns);
 	if (count > -1) {
 		*out = (FeatureSpot *)malloc(sizeof(FeatureSpot) * count);
+		FeatureSpot *o = *out;
 		int index = columns;
 		for (int row = 0; row != count; row++) {
 			index++;
 			sscanf(pResult[index++], "%s", tId);
-			out[row] = getFeatureSpot(tId);
+			o[row] = *getFeatureSpot(tId);
 		}
+
 
 		sqlite3_free_table(pResult);
 
@@ -242,7 +249,7 @@ int getFeatureSpotsForReservation(char id[], FeatureSpot **out)
 	in: 要添加的景点
 */
 int addFeatureSpotsForReservation(char id[], FeatureSpot *in) {
-	char sql[100];
+	char sql[SQL_MAX_LEN];
 	char *err = NULL;
 	int re = 0;
 
@@ -263,19 +270,20 @@ int getReservationsForFeatureSpot(char id[], Reservation **out)
 {
 	int count = 0;
 	char **pResult;
-	char condition[50];
-	char tId[10];
+	char condition[COND_MAX_LEN];
+	char tId[30];
 	int columns = 0;
 
 	sprintf(condition, "featureSpotId = '%s'", id);
 	count = getDataBy("ReservationFeatureSpot", condition, 0, NULL, &pResult, &columns);
 	if (count > -1) {
 		*out = (Reservation *)malloc(sizeof(Reservation) * count);
+		Reservation *o = *out;
 		int index = columns;
 		for (int row = 0; row != count; row++) {
 			sscanf(pResult[index++], "%s", tId);
 			index++;
-			out[row] = getReservation(tId);
+			o[row] = *getReservation(tId);
 		}
 		sqlite3_free_table(pResult);
 	}
@@ -306,6 +314,8 @@ int getReservationsBy(char condition[], int sort, const char sortBy[], Reservati
 			sscanf(pResult[index++], "%f", &o[row].totalPrice);
 
 			o[row].featureSpotCount = getFeatureSpotsForReservation(o[row].id, &o[row].featureSpots);
+
+		
 		}
 
 		sqlite3_free_table(pResult);
@@ -357,7 +367,7 @@ int getFeatureSpotsBy(char condition[], int sort, const char sortBy[], FeatureSp
 
 // 添加旅游团信息
 int addTourstGroup(TouristGroup *val) { // 注：addSystemAdmin，addFeatureSpot，addLimitation，addReservation函数的基本结构与本函数相同，将不再重复注释
-	char sql[100];
+	char sql[SQL_MAX_LEN];
 	char *err = NULL;
 	int re = 0;
 
@@ -376,7 +386,7 @@ int addTourstGroup(TouristGroup *val) { // 注：addSystemAdmin，addFeatureSpot，a
 
 // 添加系统管理员信息
 int addSystemAdmin(SystemAdmin *val) {
-	char sql[128];
+	char sql[SQL_MAX_LEN];
 	char *err = NULL;
 	int re = 0;
 
@@ -437,7 +447,7 @@ int addLimitation(FeatureSpotLimitation *val) {
 
 // 添加订单信息
 int addReservation(Reservation *val) {
-	char sql[256];
+	char sql[SQL_MAX_LEN];
 	char *err = NULL;
 	int re = 0;
 
@@ -459,7 +469,7 @@ int addReservation(Reservation *val) {
 
 // 更新数据
 int updateData(const char tableName[], char condition[], const char fieldName[], char fieldValue[], int isNumber) {
-	char sql[100];
+	char sql[SQL_MAX_LEN];
 	char value[50];
 	char *err = NULL;
 	int re = 0;
@@ -479,8 +489,8 @@ int updateData(const char tableName[], char condition[], const char fieldName[],
 
 // 删除数据
 int removeData(const char tableName[], char condition[]) {
-	char sql[100];
-	char where[50];
+	char sql[SQL_MAX_LEN];
+	char where[COND_MAX_LEN];
 	char *err = NULL;
 	int re = 0;
 
@@ -505,7 +515,7 @@ int removeData(const char tableName[], char condition[]) {
 int checkIsUnique(const char tableName[], const char fieldName[], char fieldValue[]) {
 	int count = 0;
 	char **pResult;
-	char condition[32];
+	char condition[COND_MAX_LEN];
 	int columns = 0;
 
 	sprintf(condition, "%s = '%s'", fieldName, fieldValue);

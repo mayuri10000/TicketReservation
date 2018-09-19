@@ -6,6 +6,7 @@
 #include "stdafx.h"
 #include <conio.h>                  // "_getc" 函数所在的库
 #include "pcre.h"                   // 本模块使用的正则表达式功能由pcre库提供
+#include "Color.h"
 #include "Validation.h"
 
 #pragma comment(lib, "pcre.lib")
@@ -14,10 +15,12 @@
 #define EMAIL_RE        "^[a-zA-Z0-9_.-]+@[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.[a-zA-Z0-9]{2,6}$"  // 验证邮箱的正则表达式
 #define ID_RE           "^[A-Za-z0-9]{6,10}$"                                                    // 验证用户id、系统管理员id的正则表达式
 #define PHONE_RE        "^[0-9]{11}$"                                                            // 验证手机号的正则表达式
-#define INT_RE          "^[+-]?[0-9]*$"                                                          // 验证整数的正则表达式
-#define FLOAT_RE        "^[-+]?[0-9]*\.?[0-9]+$"                                                 // 验证浮点数的正则表达式
+#define INT_RE          "^[0-9]*$"                                                          // 验证整数的正则表达式
+#define FLOAT_RE        "^[0-9]*\\.?[0-9]+$"                                                 // 验证浮点数的正则表达式
 #define DATETIME_RE     "^(\\d\\d\\d\\d):(0[1-9]|1[0-2]):([0-3]\\d):(20|21|22|23|[0-1]\\d):[0-5]\\d$"// 验证日期时间的正则表达式
 #define TIME_RE         "^(20|21|22|23|[0-1]\\d):[0-5]\\d$"                                      // 验证时间的正则表达式
+
+#define MAX_LEN 256
 
 int ovector[OVECCOUNT];
 
@@ -37,7 +40,7 @@ void inputValidate(const char hint[], char out[], const char regex[])
 	if (re == NULL)                  
 		return;
 
-	char input[256];                 // 输入缓冲区
+	char input[MAX_LEN];                 // 输入缓冲区
 	int flag = -1;
 	printf(hint);                // 输出提示信息
 	printf(" ");                 // 输出一个空格，将提示信息和输入部分分隔开，使界面美观
@@ -47,7 +50,7 @@ void inputValidate(const char hint[], char out[], const char regex[])
 		if (strlen(input) != 0) {    // 有时候读入字符串长度为0，为防止输出错误信息，在这里判断一下
 			flag = pcre_exec(re, NULL, input, strlen(input), 0, 0, ovector, OVECCOUNT); // 使用正则表达式验证输入
 			if (flag < 0) {
-				printf("\x1b[01;31m您输入的格式不正确, 请重新输入\033[0m\n");  // 输出错误信息（红色字体）
+				printf(COLOR_RED_B "您输入的格式不正确, 请重新输入\n" COLOR_RESET);  // 输出错误信息（红色字体）
 				printf(hint);                // 再次输出提示信息
 				printf(" ");
 			}
@@ -90,7 +93,7 @@ void inputTime(const char hint[], char out[])
 // 输入一个整数，如输入错误则要求重新输入
 int inputInteger(const char hint[])
 {
-	char input[10];
+	char input[MAX_LEN];
 	inputValidate(hint, input, INT_RE);
 	return atoi(input);
 }
@@ -98,7 +101,7 @@ int inputInteger(const char hint[])
 // 输入一个浮点数，如输入错误则要求重新输入
 float inputFloat(const char hint[])
 {
-	char input[10];
+	char input[MAX_LEN];
 	inputValidate(hint, input, FLOAT_RE);
 	return atof(input);
 }
@@ -106,7 +109,7 @@ float inputFloat(const char hint[])
 // 输入一个字符串，判断其长度是否符合要求
 void inputStringWithLengthLimit(const char hint[], int minLength, int maxLength, char out[]) 
 {
-	char input[256];
+	char input[MAX_LEN];
 	int flag = 0;
 	printf(hint);
 	printf(" ");
@@ -116,7 +119,7 @@ void inputStringWithLengthLimit(const char hint[], int minLength, int maxLength,
 		if (strlen(input) != 0) {
 			flag = strlen(input) >= minLength && strlen(input) <= maxLength; // 判断字符串长度是否符合要求
 			if (!flag) {
-				printf("\x1b[01;31m您输入的文本长度不符合要求，请输入%d到%d个字符的文本\033[0m\n", minLength, maxLength);
+				printf(COLOR_RED_B "您输入的文本长度不符合要求，请输入%d到%d个字符的文本\n" COLOR_RESET, minLength, maxLength);
 				printf(hint);
 				printf(" ");
 			}
@@ -128,7 +131,7 @@ void inputStringWithLengthLimit(const char hint[], int minLength, int maxLength,
 
 // 输入密码，在屏幕上以"*"代表字符
 void inputPassword(const char hint[], char out[]) {
-	char input[50];
+	char input[MAX_LEN];
 	int index = 0;
 	char ch;
 	printf(hint);
@@ -161,7 +164,7 @@ char readKey()
 
 int inputBool(const char hint[]) {
 	while (1) {
-		printf("%s\033[01;33m[Y/N]\033[0m: ", hint);
+		printf("%s" COLOR_YELLOW_B "[Y/N]" COLOR_RESET ": ", hint);
 		char input = readKey();
 		printf("%c\n", input);
 		if (input == 'y' || input == 'Y') {
@@ -172,6 +175,6 @@ int inputBool(const char hint[]) {
 			return 0;
 		}
 		else
-			printf("\n\x1b[01;31m输入有误！\033[0m\n");
+			printf(COLOR_RED_B "\n输入有误！\n" COLOR_RESET);
 	}
 }
